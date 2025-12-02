@@ -1,4 +1,14 @@
 <div class="relative flex h-auto min-h-screen w-full flex-col bg-background-dark font-display overflow-x-hidden">
+  <!-- BlockUI overlay -->
+  @if (isCalculating()) {
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div class="flex flex-col items-center gap-4">
+        <p-progressSpinner strokeWidth="4" ariaLabel="loading"></p-progressSpinner>
+        <span class="text-white text-lg font-bold">กำลังคำนวณ Minimax...</span>
+      </div>
+    </div>
+  }
+
   <header class="flex items-center justify-between border-b border-[#232948] px-4 sm:px-10 py-3">
     <div class="flex items-center gap-4 text-white">
       <div class="size-6 text-primary">
@@ -83,7 +93,7 @@
           <div class="bg-[#232948] rounded-lg p-4 mb-2">
             <div class="flex justify-between items-center mb-2">
               <span class="text-white/70 text-sm">คะแนนปัจจุบัน (Radiant POV)</span>
-              <span 
+              <span
                 class="text-xl font-bold"
                 [class.text-radiant]="currentScore() > 0"
                 [class.text-dire]="currentScore() < 0"
@@ -94,7 +104,7 @@
             <div class="flex items-center gap-2">
               <span class="text-radiant text-sm font-bold">RAD</span>
               <div class="flex-1 h-2 bg-[#1a1f29] rounded-full overflow-hidden">
-                <div 
+                <div
                   class="h-full transition-all duration-300"
                   [class.bg-radiant]="currentScore() >= 0"
                   [class.bg-dire]="currentScore() < 0"
@@ -231,7 +241,7 @@
         </p>
         <p class="text-sm mt-2">
           <span class="font-semibold">Score หลังเลือก:</span>
-          <span 
+          <span
             class="font-bold"
             [class.text-radiant]="suggestedHero()!.immediateScore > 0"
             [class.text-dire]="suggestedHero()!.immediateScore < 0"

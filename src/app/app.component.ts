@@ -5,11 +5,13 @@ import { Hero, AlgorithmSettings } from './models/hero.model';
 import { MinimaxService } from './services/minimax.service';
 import { DialogModule } from 'primeng/dialog';
 import { ButtonModule } from 'primeng/button';
+import { BlockUIModule } from 'primeng/blockui';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, DialogModule, ButtonModule],
+  imports: [CommonModule, FormsModule, DialogModule, ButtonModule, BlockUIModule, ProgressSpinnerModule],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
@@ -33,6 +35,9 @@ export class AppComponent {
   showSuggestionDialog = signal(false);
   suggestedHero = signal<{ name: string; score: number; immediateScore: number; imageUrl: string } | null>(null);
   isRadiantTurnForSuggestion = signal(true);
+
+  // Loading state for BlockUI
+  isCalculating = signal(false);
 
   // Real-time score (Radiant perspective - positive = Radiant advantage)
   currentScore = computed(() => {
@@ -122,10 +127,16 @@ export class AppComponent {
     this.direTeam.set([]);
   }
 
-  startSimulation() {
+  async startSimulation() {
     const radLen = this.radiantTeam().length;
     const direLen = this.direTeam().length;
     const isRadiantTurn = radLen <= direLen;
+
+    // แสดง BlockUI
+    this.isCalculating.set(true);
+
+    // ใช้ setTimeout เพื่อให้ UI update ก่อนเริ่มคำนวณ
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     const result = this.minimax.suggestNextPick(
       this.radiantTeam(),
@@ -134,6 +145,9 @@ export class AppComponent {
       this.settings(),
       isRadiantTurn
     );
+
+    // ซ่อน BlockUI
+    this.isCalculating.set(false);
 
     if (result) {
       const heroData = this.allHeroes().find(h => h.name === result.hero);

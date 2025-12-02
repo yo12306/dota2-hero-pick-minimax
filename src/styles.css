@@ -35,3 +35,10 @@ html {
   word-wrap: normal;
   direction: ltr;
 }
+
+/* BlockUI center content */
+.p-blockui {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}

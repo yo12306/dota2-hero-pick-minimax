@@ -148,7 +148,7 @@ export class MinimaxService {
       availablePool
     };
 
-    const { score, move } = this.minimax(state, 4, -Infinity, Infinity, isRadiantTurn, settings);
+    const { score, move } = this.minimax(state, 6, -Infinity, Infinity, isRadiantTurn, settings);
 
     return move ? { hero: move, score } : null;
   }
