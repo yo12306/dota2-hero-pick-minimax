@@ -31,8 +31,20 @@ export class AppComponent {
 
   // Dialog state
   showSuggestionDialog = signal(false);
-  suggestedHero = signal<{ name: string; score: number; imageUrl: string } | null>(null);
+  suggestedHero = signal<{ name: string; score: number; immediateScore: number; imageUrl: string } | null>(null);
   isRadiantTurnForSuggestion = signal(true);
+
+  // Real-time score (Radiant perspective - positive = Radiant advantage)
+  currentScore = computed(() => {
+    const radiant = this.radiantTeam();
+    const dire = this.direTeam();
+
+    if (radiant.length === 0 && dire.length === 0) {
+      return 0;
+    }
+
+    return this.minimax.getCurrentScore(radiant, dire, this.settings());
+  });
 
   constructor() {
     this.minimax.initializeData(this.allHeroes());
@@ -43,6 +55,7 @@ export class AppComponent {
     this.direTeam.set([]);
     this.isRadiantLeft.update(v => !v);
   }
+
   allHeroes = signal<Hero[]>([
     { id: 1, name: 'Anti-Mage', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/antimage.png' },
     { id: 2, name: 'Axe', primaryAttr: 'str', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/axe.png' },
@@ -124,9 +137,17 @@ export class AppComponent {
 
     if (result) {
       const heroData = this.allHeroes().find(h => h.name === result.hero);
+      const immediateScore = this.minimax.getImmediateScore(
+        this.radiantTeam(),
+        this.direTeam(),
+        result.hero,
+        isRadiantTurn,
+        this.settings()
+      );
       this.suggestedHero.set({
         name: result.hero,
         score: result.score,
+        immediateScore,
         imageUrl: heroData?.imageUrl || ''
       });
       this.isRadiantTurnForSuggestion.set(isRadiantTurn);

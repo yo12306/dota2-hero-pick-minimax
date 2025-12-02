@@ -41,10 +41,10 @@ export class MinimaxService {
 
     // Base Winrate
     state.radiantPicks.forEach(h => {
-      score += W_BASE * ((this.heroWinrates[h] ?? 50) - 50);
+      score += W_BASE * (this.heroWinrates[h] ?? 50);
     });
     state.direPicks.forEach(h => {
-      score -= W_BASE * ((this.heroWinrates[h] ?? 50) - 50);
+      score -= W_BASE * (this.heroWinrates[h] ?? 50);
     });
 
     // Counter Score
@@ -151,5 +151,42 @@ export class MinimaxService {
     const { score, move } = this.minimax(state, 4, -Infinity, Infinity, isRadiantTurn, settings);
 
     return move ? { hero: move, score } : null;
+  }
+
+  // คำนวณ score ทันทีหลังเลือก hero (ไม่ lookahead)
+  getImmediateScore(
+    radiant: Hero[],
+    dire: Hero[],
+    heroName: string,
+    isRadiantPick: boolean,
+    settings: AlgorithmSettings
+  ): number {
+    const newRadiant = isRadiantPick
+      ? [...radiant.map(h => h.name), heroName]
+      : radiant.map(h => h.name);
+    const newDire = isRadiantPick
+      ? dire.map(h => h.name)
+      : [...dire.map(h => h.name), heroName];
+
+    const state: DraftState = {
+      radiantPicks: newRadiant,
+      direPicks: newDire,
+      availablePool: []
+    };
+    return this.evaluate(state, settings);
+  }
+
+  // คำนวณ score ปัจจุบันแบบ real-time
+  getCurrentScore(
+    radiant: Hero[],
+    dire: Hero[],
+    settings: AlgorithmSettings
+  ): number {
+    const state: DraftState = {
+      radiantPicks: radiant.map(h => h.name),
+      direPicks: dire.map(h => h.name),
+      availablePool: []
+    };
+    return this.evaluate(state, settings);
   }
 }
