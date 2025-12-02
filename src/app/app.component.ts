@@ -3,11 +3,13 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Hero, AlgorithmSettings } from './models/hero.model';
 import { MinimaxService } from './services/minimax.service';
+import { DialogModule } from 'primeng/dialog';
+import { ButtonModule } from 'primeng/button';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DialogModule, ButtonModule],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
@@ -26,6 +28,11 @@ export class AppComponent {
   searchTerm = signal('');
   activeFilter = signal<'ALL' | 'str' | 'agi' | 'int'>('ALL');
   isRadiantLeft = signal(true);
+
+  // Dialog state
+  showSuggestionDialog = signal(false);
+  suggestedHero = signal<{ name: string; score: number; imageUrl: string } | null>(null);
+  isRadiantTurnForSuggestion = signal(true);
 
   constructor() {
     this.minimax.initializeData(this.allHeroes());
@@ -116,8 +123,33 @@ export class AppComponent {
     );
 
     if (result) {
-      console.log(`AI แนะนำ: ${result.hero} (Score: ${result.score.toFixed(2)})`);
-      alert(`AI แนะนำให้เลือก: ${result.hero}\nEstimated Score: ${result.score.toFixed(2)}`);
+      const heroData = this.allHeroes().find(h => h.name === result.hero);
+      this.suggestedHero.set({
+        name: result.hero,
+        score: result.score,
+        imageUrl: heroData?.imageUrl || ''
+      });
+      this.isRadiantTurnForSuggestion.set(isRadiantTurn);
+      this.showSuggestionDialog.set(true);
     }
+  }
+
+  acceptSuggestion() {
+    const suggested = this.suggestedHero();
+    if (suggested) {
+      const hero = this.allHeroes().find(h => h.name === suggested.name);
+      if (hero) {
+        if (this.isRadiantTurnForSuggestion()) {
+          this.radiantTeam.update(list => [...list, hero]);
+        } else {
+          this.direTeam.update(list => [...list, hero]);
+        }
+      }
+    }
+    this.showSuggestionDialog.set(false);
+  }
+
+  closeSuggestionDialog() {
+    this.showSuggestionDialog.set(false);
   }
 }
