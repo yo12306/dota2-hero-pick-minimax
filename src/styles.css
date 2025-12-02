@@ -1,1 +1,32 @@
-/* You can add global styles to this file, and also import other style files */
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #FFD700;
+  --color-background-light: #f6f6f8;
+  --color-background-dark: #101322;
+  --color-radiant: #56A442;
+  --color-dire: #C53223;
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
+  --font-display: "Space Grotesk", "Noto Sans Thai", sans-serif;
+}
+
+body {
+  background-color: var(--color-background-dark);
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+}
