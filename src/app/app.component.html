@@ -103,13 +103,16 @@
             </div>
             <div class="flex items-center gap-2">
               <span class="text-radiant text-sm font-bold">RAD</span>
-              <div class="flex-1 h-2 bg-[#1a1f29] rounded-full overflow-hidden">
-                <div
-                  class="h-full transition-all duration-300"
-                  [class.bg-radiant]="currentScore() >= 0"
-                  [class.bg-dire]="currentScore() < 0"
-                  [style.width.%]="50 + (currentScore() / 4)"
-                  [style.marginLeft.%]="currentScore() < 0 ? 50 + (currentScore() / 4) : 0">
+              <div class="flex-1 h-3 bg-[#1a1f29] rounded-full overflow-hidden flex">
+                <!-- Radiant bar (ซ้าย) -->
+                <div 
+                  class="h-full bg-radiant transition-all duration-300"
+                  [style.width.%]="currentScore() >= 0 ? 50 + (currentScore() / 4) : 50 + (currentScore() / 4)">
+                </div>
+                <!-- Dire bar (ขวา) -->
+                <div 
+                  class="h-full bg-dire transition-all duration-300"
+                  [style.width.%]="currentScore() >= 0 ? 50 - (currentScore() / 4) : 50 - (currentScore() / 4)">
                 </div>
               </div>
               <span class="text-dire text-sm font-bold">DIRE</span>
