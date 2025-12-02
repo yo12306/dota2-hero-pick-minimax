@@ -17,6 +17,11 @@ body {
   margin: 0;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
+
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
   font-weight: normal;
