@@ -1,190 +1,268 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Hero, AlgorithmSettings } from './models/hero.model';
+import { Champion, Role, Tier, DraftActionType } from './models/champion.model';
 import { MinimaxService } from './services/minimax.service';
 import { DialogModule } from 'primeng/dialog';
 import { ButtonModule } from 'primeng/button';
-import { BlockUIModule } from 'primeng/blockui';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
+
+const DATA_DRAGON_VERSION = '14.24.1';
+const DDV = DATA_DRAGON_VERSION;
+
+const DRAFT_SEQUENCE: DraftActionType[] = [
+  // Ban Phase 1 (3 each alternating)
+  { team: 'blue', action: 'ban' },
+  { team: 'red',  action: 'ban' },
+  { team: 'blue', action: 'ban' },
+  { team: 'red',  action: 'ban' },
+  { team: 'blue', action: 'ban' },
+  { team: 'red',  action: 'ban' },
+  // Pick Phase 1
+  { team: 'blue', action: 'pick' },
+  { team: 'red',  action: 'pick' },
+  { team: 'red',  action: 'pick' },
+  { team: 'blue', action: 'pick' },
+  { team: 'blue', action: 'pick' },
+  { team: 'red',  action: 'pick' },
+  // Ban Phase 2 (2 each alternating, Red first)
+  { team: 'red',  action: 'ban' },
+  { team: 'blue', action: 'ban' },
+  { team: 'red',  action: 'ban' },
+  { team: 'blue', action: 'ban' },
+  // Pick Phase 2
+  { team: 'red',  action: 'pick' },
+  { team: 'blue', action: 'pick' },
+  { team: 'blue', action: 'pick' },
+  { team: 'red',  action: 'pick' },
+];
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, DialogModule, ButtonModule, BlockUIModule, ProgressSpinnerModule],
+  imports: [CommonModule, FormsModule, DialogModule, ButtonModule, ProgressSpinnerModule],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
   private minimax = inject(MinimaxService);
 
-  settings = signal<AlgorithmSettings>({
-    wBase: 50,
-    wCounter: 75,
-    wSynergy: 25
-  });
+  // Algorithm weight signals
+  wBase    = signal(50);
+  wCounter = signal(75);
+  wSynergy = signal(25);
+  wRole    = signal(50);
+  wBan     = signal(50);
 
-  radiantTeam = signal<Hero[]>([]);
-  direTeam = signal<Hero[]>([]);
+  settings = computed(() => ({
+    wBase:    this.wBase(),
+    wCounter: this.wCounter(),
+    wSynergy: this.wSynergy(),
+    wRole:    this.wRole(),
+    wBan:     this.wBan()
+  }));
 
-  searchTerm = signal('');
-  activeFilter = signal<'ALL' | 'str' | 'agi' | 'int'>('ALL');
-  isRadiantLeft = signal(true);
+  // Draft state
+  blueTeam    = signal<Champion[]>([]);
+  redTeam     = signal<Champion[]>([]);
+  blueBans    = signal<string[]>([]);
+  redBans     = signal<string[]>([]);
+  currentStep = signal(0);
 
-  // Dialog state
-  showSuggestionDialog = signal(false);
-  suggestedHero = signal<{ name: string; score: number; immediateScore: number; imageUrl: string } | null>(null);
-  isRadiantTurnForSuggestion = signal(true);
-
-  // Loading state for BlockUI
+  // UI state
+  searchTerm    = signal('');
+  activeFilter  = signal<'ALL' | Role>('ALL');
   isCalculating = signal(false);
 
-  // Real-time score (Radiant perspective - positive = Radiant advantage)
+  // Suggestion dialog
+  showDialog = signal(false);
+  suggestion = signal<{
+    name: string;
+    score: number;
+    imageUrl: string;
+    forTeam: 'blue' | 'red';
+    isBan: boolean;
+  } | null>(null);
+
+  // Current draft action
+  currentAction = computed<DraftActionType | null>(() => {
+    const step = this.currentStep();
+    return step < DRAFT_SEQUENCE.length ? DRAFT_SEQUENCE[step] : null;
+  });
+
+  isDraftComplete = computed(() => this.currentStep() >= DRAFT_SEQUENCE.length);
+
+  currentPhaseName = computed(() => {
+    const step = this.currentStep();
+    if (step < 6)  return 'Ban Phase 1';
+    if (step < 12) return 'Pick Phase 1';
+    if (step < 16) return 'Ban Phase 2';
+    if (step < 20) return 'Pick Phase 2';
+    return 'Draft Complete';
+  });
+
+  allBans = computed(() => [...this.blueBans(), ...this.redBans()]);
+
   currentScore = computed(() => {
-    const radiant = this.radiantTeam();
-    const dire = this.direTeam();
-
-    if (radiant.length === 0 && dire.length === 0) {
-      return 0;
-    }
-
-    return this.minimax.getCurrentScore(radiant, dire, this.settings());
+    const blue = this.blueTeam();
+    const red  = this.redTeam();
+    if (blue.length === 0 && red.length === 0) return 0;
+    return this.minimax.getCurrentScore(blue, red, this.settings());
   });
 
   constructor() {
-    this.minimax.initializeData(this.allHeroes());
+    this.minimax.initializeData(this.allChampions());
   }
 
-  swapSides() {
-    this.radiantTeam.set([]);
-    this.direTeam.set([]);
-    this.isRadiantLeft.update(v => !v);
-  }
-
-  allHeroes = signal<Hero[]>([
-    { id: 1, name: 'Anti-Mage', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/antimage.png' },
-    { id: 2, name: 'Axe', primaryAttr: 'str', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/axe.png' },
-    { id: 3, name: 'Bane', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/bane.png' },
-    { id: 4, name: 'Crystal Maiden', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/crystal_maiden.png' },
-    { id: 5, name: 'Juggernaut', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/juggernaut.png' },
-    { id: 6, name: 'Lina', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/lina.png' },
-    { id: 7, name: 'Pudge', primaryAttr: 'str', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/pudge.png' },
-    { id: 8, name: 'Sniper', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/sniper.png' },
-    { id: 9, name: 'Sven', primaryAttr: 'str', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/sven.png' },
-    { id: 10, name: 'Zeus', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/zuus.png' },
-    { id: 11, name: 'Earthshaker', primaryAttr: 'str', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/earthshaker.png' },
-    { id: 12, name: 'Mirana', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/mirana.png' },
-    { id: 13, name: 'Shadow Fiend', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/nevermore.png' },
-    { id: 14, name: 'Morphling', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/morphling.png' },
-    { id: 15, name: 'Phantom Lancer', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/phantom_lancer.png' },
-    { id: 16, name: 'Puck', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/puck.png' },
-    { id: 17, name: 'Storm Spirit', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/storm_spirit.png' },
-    { id: 18, name: 'Tiny', primaryAttr: 'str', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/tiny.png' },
-    { id: 19, name: 'Vengeful Spirit', primaryAttr: 'agi', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/vengefulspirit.png' },
-    { id: 20, name: 'Windranger', primaryAttr: 'int', imageUrl: 'https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/windrunner.png' }
+  allChampions = signal<Champion[]>([
+    { id: 1,  key: 'Jinx',       name: 'Jinx',       roles: ['Bot'],            classes: ['Marksman'],           imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Jinx.png`,       winrate: 50.5, tier: 'A' },
+    { id: 2,  key: 'Ahri',       name: 'Ahri',       roles: ['Mid'],            classes: ['Mage', 'Assassin'],   imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Ahri.png`,       winrate: 51.2, tier: 'A' },
+    { id: 3,  key: 'Yasuo',      name: 'Yasuo',      roles: ['Mid', 'Top'],     classes: ['Fighter', 'Assassin'],imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Yasuo.png`,      winrate: 49.8, tier: 'B' },
+    { id: 4,  key: 'Thresh',     name: 'Thresh',     roles: ['Support'],        classes: ['Support', 'Tank'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Thresh.png`,     winrate: 52.1, tier: 'S' },
+    { id: 5,  key: 'Zed',        name: 'Zed',        roles: ['Mid'],            classes: ['Assassin'],           imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Zed.png`,        winrate: 50.8, tier: 'A' },
+    { id: 6,  key: 'Lux',        name: 'Lux',        roles: ['Mid', 'Support'], classes: ['Mage', 'Support'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Lux.png`,        winrate: 51.5, tier: 'A' },
+    { id: 7,  key: 'Malphite',   name: 'Malphite',   roles: ['Top'],            classes: ['Tank', 'Fighter'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Malphite.png`,   winrate: 50.2, tier: 'B' },
+    { id: 8,  key: 'LeeSin',     name: 'Lee Sin',    roles: ['Jungle'],         classes: ['Fighter', 'Assassin'],imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/LeeSin.png`,     winrate: 49.5, tier: 'A' },
+    { id: 9,  key: 'Ezreal',     name: 'Ezreal',     roles: ['Bot'],            classes: ['Marksman', 'Mage'],   imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Ezreal.png`,     winrate: 50.1, tier: 'B' },
+    { id: 10, key: 'Leona',      name: 'Leona',      roles: ['Support'],        classes: ['Tank', 'Support'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Leona.png`,      winrate: 51.8, tier: 'A' },
+    { id: 11, key: 'Garen',      name: 'Garen',      roles: ['Top'],            classes: ['Fighter', 'Tank'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Garen.png`,      winrate: 51.0, tier: 'B' },
+    { id: 12, key: 'Vi',         name: 'Vi',         roles: ['Jungle'],         classes: ['Fighter', 'Tank'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Vi.png`,         winrate: 50.7, tier: 'B' },
+    { id: 13, key: 'Ashe',       name: 'Ashe',       roles: ['Bot'],            classes: ['Marksman', 'Support'],imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Ashe.png`,       winrate: 51.3, tier: 'A' },
+    { id: 14, key: 'Katarina',   name: 'Katarina',   roles: ['Mid'],            classes: ['Assassin', 'Mage'],   imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Katarina.png`,   winrate: 50.4, tier: 'B' },
+    { id: 15, key: 'Darius',     name: 'Darius',     roles: ['Top'],            classes: ['Fighter', 'Tank'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Darius.png`,     winrate: 51.9, tier: 'A' },
+    { id: 16, key: 'Orianna',    name: 'Orianna',    roles: ['Mid'],            classes: ['Mage'],               imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Orianna.png`,    winrate: 51.1, tier: 'A' },
+    { id: 17, key: 'Jhin',       name: 'Jhin',       roles: ['Bot'],            classes: ['Marksman'],           imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Jhin.png`,       winrate: 52.5, tier: 'S' },
+    { id: 18, key: 'Nasus',      name: 'Nasus',      roles: ['Top'],            classes: ['Fighter', 'Tank'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Nasus.png`,      winrate: 50.6, tier: 'B' },
+    { id: 19, key: 'Syndra',     name: 'Syndra',     roles: ['Mid'],            classes: ['Mage', 'Assassin'],   imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Syndra.png`,     winrate: 51.4, tier: 'A' },
+    { id: 20, key: 'Blitzcrank', name: 'Blitzcrank', roles: ['Support'],        classes: ['Tank', 'Support'],    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${DDV}/img/champion/Blitzcrank.png`, winrate: 50.3, tier: 'B' },
   ]);
 
-  filteredHeroes = computed(() => {
-    const term = this.searchTerm().toLowerCase();
+  filteredChampions = computed(() => {
+    const term   = this.searchTerm().toLowerCase();
     const filter = this.activeFilter();
-    const pickedIds = [...this.radiantTeam(), ...this.direTeam()].map(h => h.id);
+    const picked = new Set([...this.blueTeam(), ...this.redTeam()].map(c => c.id));
+    const banned = new Set(this.allBans());
 
-    return this.allHeroes().map(hero => ({
-      ...hero,
-      isPicked: pickedIds.includes(hero.id)
-    })).filter(hero => {
-      const matchesSearch = hero.name.toLowerCase().includes(term);
-      const matchesAttr = filter === 'ALL' || hero.primaryAttr === filter;
-      return matchesSearch && matchesAttr;
+    return this.allChampions().map(champ => ({
+      ...champ,
+      isPicked: picked.has(champ.id),
+      isBanned: banned.has(champ.name),
+    })).filter(champ => {
+      const matchesSearch = champ.name.toLowerCase().includes(term);
+      const matchesRole   = filter === 'ALL' || champ.roles.includes(filter as Role);
+      return matchesSearch && matchesRole;
     });
   });
 
-  selectHero(hero: Hero) {
-    if (hero.isPicked) return;
-
-    const radLen = this.radiantTeam().length;
-    const direLen = this.direTeam().length;
-
-    if (radLen < 5 && (radLen <= direLen)) {
-      this.radiantTeam.update(list => [...list, hero]);
-    } else if (direLen < 5) {
-      this.direTeam.update(list => [...list, hero]);
-    } else {
-      alert('ทีมเต็มแล้ว หรือลำดับการเลือกไม่ถูกต้อง');
-    }
+  getChampionImage(name: string): string {
+    return this.allChampions().find(c => c.name === name)?.imageUrl ?? '';
   }
 
-  removeHero(hero: Hero, team: 'radiant' | 'dire') {
-    if (team === 'radiant') {
-      this.radiantTeam.update(list => list.filter(h => h.id !== hero.id));
+  tierColor(tier: Tier): string {
+    const map: Record<Tier, string> = {
+      S: '#FFD700', A: '#60a5fa', B: '#4ade80', C: '#9ca3af', D: '#f87171'
+    };
+    return map[tier];
+  }
+
+  selectChampion(champ: Champion) {
+    if (champ.isPicked || champ.isBanned) return;
+    const action = this.currentAction();
+    if (!action) return;
+
+    if (action.action === 'ban') {
+      if (action.team === 'blue') {
+        this.blueBans.update(b => [...b, champ.name]);
+      } else {
+        this.redBans.update(b => [...b, champ.name]);
+      }
     } else {
-      this.direTeam.update(list => list.filter(h => h.id !== hero.id));
+      if (action.team === 'blue') {
+        this.blueTeam.update(t => [...t, champ]);
+      } else {
+        this.redTeam.update(t => [...t, champ]);
+      }
+    }
+    this.currentStep.update(s => s + 1);
+  }
+
+  removeFromTeam(champ: Champion, team: 'blue' | 'red') {
+    if (team === 'blue') {
+      this.blueTeam.update(list => list.filter(c => c.id !== champ.id));
+    } else {
+      this.redTeam.update(list => list.filter(c => c.id !== champ.id));
     }
   }
 
   resetDraft() {
-    this.radiantTeam.set([]);
-    this.direTeam.set([]);
+    this.blueTeam.set([]);
+    this.redTeam.set([]);
+    this.blueBans.set([]);
+    this.redBans.set([]);
+    this.currentStep.set(0);
   }
 
-  async startSimulation() {
-    const radLen = this.radiantTeam().length;
-    const direLen = this.direTeam().length;
-    const isRadiantTurn = radLen <= direLen;
+  async runSuggestion() {
+    const action = this.currentAction();
+    if (!action) return;
 
-    // แสดง BlockUI
     this.isCalculating.set(true);
-
-    // ใช้ setTimeout เพื่อให้ UI update ก่อนเริ่มคำนวณ
     await new Promise(resolve => setTimeout(resolve, 50));
 
-    const result = this.minimax.suggestNextPick(
-      this.radiantTeam(),
-      this.direTeam(),
-      this.allHeroes(),
-      this.settings(),
-      isRadiantTurn
-    );
+    const allBans    = this.allBans();
+    const isBlueTurn = action.team === 'blue';
 
-    // ซ่อน BlockUI
-    this.isCalculating.set(false);
-
-    if (result) {
-      const heroData = this.allHeroes().find(h => h.name === result.hero);
-      const immediateScore = this.minimax.getImmediateScore(
-        this.radiantTeam(),
-        this.direTeam(),
-        result.hero,
-        isRadiantTurn,
-        this.settings()
+    if (action.action === 'ban') {
+      const result = this.minimax.suggestNextBan(
+        this.blueTeam(), this.redTeam(), this.allChampions(),
+        allBans, this.settings(), isBlueTurn
       );
-      this.suggestedHero.set({
-        name: result.hero,
-        score: result.score,
-        immediateScore,
-        imageUrl: heroData?.imageUrl || ''
-      });
-      this.isRadiantTurnForSuggestion.set(isRadiantTurn);
-      this.showSuggestionDialog.set(true);
+      this.isCalculating.set(false);
+      if (result) {
+        this.suggestion.set({
+          name:      result.champion,
+          score:     result.threatScore,
+          imageUrl:  this.getChampionImage(result.champion),
+          forTeam:   action.team,
+          isBan:     true
+        });
+        this.showDialog.set(true);
+      }
+    } else {
+      const result = this.minimax.suggestNextPick(
+        this.blueTeam(), this.redTeam(), this.allChampions(),
+        allBans, this.settings(), isBlueTurn
+      );
+      this.isCalculating.set(false);
+      if (result) {
+        this.suggestion.set({
+          name:      result.champion,
+          score:     result.score,
+          imageUrl:  this.getChampionImage(result.champion),
+          forTeam:   action.team,
+          isBan:     false
+        });
+        this.showDialog.set(true);
+      }
     }
   }
 
   acceptSuggestion() {
-    const suggested = this.suggestedHero();
-    if (suggested) {
-      const hero = this.allHeroes().find(h => h.name === suggested.name);
-      if (hero) {
-        if (this.isRadiantTurnForSuggestion()) {
-          this.radiantTeam.update(list => [...list, hero]);
-        } else {
-          this.direTeam.update(list => [...list, hero]);
-        }
-      }
+    const s = this.suggestion();
+    if (s) {
+      const champ = this.allChampions().find(c => c.name === s.name);
+      if (champ) this.selectChampion(champ);
     }
-    this.showSuggestionDialog.set(false);
+    this.showDialog.set(false);
   }
 
-  closeSuggestionDialog() {
-    this.showSuggestionDialog.set(false);
+  closeDialog() {
+    this.showDialog.set(false);
   }
+
+  readonly Math = Math;
+  readonly roles: Role[] = ['Top', 'Jungle', 'Mid', 'Bot', 'Support'];
+  readonly roleShort: Record<Role, string> = {
+    Top: 'TOP', Jungle: 'JGL', Mid: 'MID', Bot: 'BOT', Support: 'SUP'
+  };
 }

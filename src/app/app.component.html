@@ -1,275 +1,370 @@
 <div class="relative flex h-auto min-h-screen w-full flex-col bg-background-dark font-display overflow-x-hidden">
-  <!-- BlockUI overlay -->
+
+  <!-- Loading overlay -->
   @if (isCalculating()) {
     <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
       <div class="flex flex-col items-center gap-4">
         <p-progressSpinner strokeWidth="4" ariaLabel="loading"></p-progressSpinner>
-        <span class="text-white text-lg font-bold">กำลังคำนวณ Minimax...</span>
+        <span class="text-white text-lg font-bold">Calculating Minimax...</span>
       </div>
     </div>
   }
 
+  <!-- Header -->
   <header class="flex items-center justify-between border-b border-[#232948] px-4 sm:px-10 py-3">
-    <div class="flex items-center gap-4 text-white">
-      <div class="size-6 text-primary">
-        <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-          <path d="M44 11.2727C44 14.0109 39.8386 16.3957 33.69 17.6364C39.8386 18.877 44 21.2618 44 24C44 26.7382 39.8386 29.123 33.69 30.3636C39.8386 31.6043 44 33.9891 44 36.7273C44 40.7439 35.0457 44 24 44C12.9543 44 4 40.7439 4 36.7273C4 33.9891 8.16144 31.6043 14.31 30.3636C8.16144 29.123 4 26.7382 4 24C4 21.2618 8.16144 18.877 14.31 17.6364C8.16144 16.3957 4 14.0109 4 11.2727C4 7.25611 12.9543 4 24 4C35.0457 4 44 7.25611 44 11.2727Z" fill="currentColor"></path>
-        </svg>
-      </div>
-      <h2 class="text-white text-lg font-bold">Dota 2 AI Drafter</h2>
+    <div class="flex items-center gap-3 text-white">
+      <svg class="size-6 text-primary" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <path d="M44 11.2727C44 14.0109 39.8386 16.3957 33.69 17.6364C39.8386 18.877 44 21.2618 44 24C44 26.7382 39.8386 29.123 33.69 30.3636C39.8386 31.6043 44 33.9891 44 36.7273C44 40.7439 35.0457 44 24 44C12.9543 44 4 40.7439 4 36.7273C4 33.9891 8.16144 31.6043 14.31 30.3636C8.16144 29.123 4 26.7382 4 24C4 21.2618 8.16144 18.877 14.31 17.6364C8.16144 16.3957 4 14.0109 4 11.2727C4 7.25611 12.9543 4 24 4C35.0457 4 44 7.25611 44 11.2727Z" fill="currentColor"/>
+      </svg>
+      <h2 class="text-white text-lg font-bold">LoL AI Drafter</h2>
+    </div>
+    <!-- Draft phase badge -->
+    <div class="flex items-center gap-3">
+      @if (!isDraftComplete()) {
+        <span class="text-white/50 text-sm hidden sm:block">Step {{ currentStep() + 1 }}/20</span>
+        <div
+          class="px-4 py-1.5 rounded-full text-sm font-bold"
+          [class.bg-blue-600]="currentAction()?.team === 'blue'"
+          [class.bg-red-600]="currentAction()?.team === 'red'">
+          <span class="text-white">
+            {{ currentAction()?.team === 'blue' ? 'Blue' : 'Red' }}
+            {{ currentAction()?.action === 'ban' ? '— Banning' : '— Picking' }}
+          </span>
+        </div>
+        <span class="text-white/60 text-sm font-semibold">{{ currentPhaseName() }}</span>
+      } @else {
+        <span class="px-4 py-1.5 rounded-full bg-primary text-black text-sm font-bold">Draft Complete</span>
+      }
     </div>
   </header>
 
-  <main class="flex-1 py-10 px-4 max-w-7xl mx-auto w-full">
-    <div class="pb-8">
-      <h1 class="text-white text-4xl font-black">ตั้งค่าการจำลอง</h1>
-    </div>
+  <main class="flex-1 py-8 px-4 max-w-7xl mx-auto w-full">
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <div
-        class="flex flex-col gap-6 rounded-lg bg-[#1E2227]/50 p-6 border transition-colors duration-300"
-        [class.border-radiant-50]="isRadiantLeft()"
-        [class.border-dire-50]="!isRadiantLeft()"
-        [style.borderColor]="isRadiantLeft() ? 'rgba(86, 164, 66, 0.5)' : 'rgba(197, 50, 35, 0.5)'">
+      <!-- Blue Team -->
+      <div class="flex flex-col gap-4 rounded-lg bg-[#1E2227]/50 p-5 border border-blue-500/40">
+        <h2 class="text-[20px] font-bold border-b border-blue-500/30 pb-3 text-blue-400">Blue Side</h2>
 
-        <h2
-          class="text-[22px] font-bold border-b pb-3 transition-colors duration-300 text-white"
-          [class.border-radiant-30]="isRadiantLeft()"
-          [class.border-dire-30]="!isRadiantLeft()"
-          [style.borderColor]="isRadiantLeft() ? 'rgba(86, 164, 66, 0.3)' : 'rgba(197, 50, 35, 0.3)'">
-          {{ isRadiantLeft() ? 'ทีม Radiant' : 'ทีม Dire' }}
-        </h2>
+        <!-- Blue Bans -->
+        <div>
+          <p class="text-white/40 text-xs mb-1.5 uppercase tracking-wide">Bans</p>
+          <div class="flex gap-1.5">
+            @for (i of [0,1,2,3,4]; track i) {
+              <div class="w-10 h-10 rounded bg-[#232948] border border-[#323b67] overflow-hidden flex items-center justify-center">
+                @if (blueBans()[i]) {
+                  <img [src]="getChampionImage(blueBans()[i])" class="w-full h-full object-cover grayscale opacity-60">
+                } @else {
+                  <span class="text-white/20 text-xs">✕</span>
+                }
+              </div>
+            }
+          </div>
+        </div>
 
-        <div class="flex flex-col gap-2 min-h-[112px]">
-          @for (hero of (isRadiantLeft() ? radiantTeam() : direTeam()); track hero.id) {
-            <div (click)="removeHero(hero, isRadiantLeft() ? 'radiant' : 'dire')" class="relative group cursor-pointer flex items-center gap-4 bg-[#232948] p-2 rounded-lg hover:bg-red-900/50 transition-colors">
-              <img [src]="hero.imageUrl" class="w-12 h-12 rounded object-cover">
-              <span class="text-white font-bold">{{ hero.name }}</span>
-              <span class="absolute right-4 text-red-500 opacity-0 group-hover:opacity-100 material-symbols-outlined">close</span>
+        <!-- Blue Picks -->
+        <div class="flex flex-col gap-2 min-h-[100px]">
+          @for (champ of blueTeam(); track champ.id) {
+            <div (click)="removeFromTeam(champ, 'blue')" class="relative group cursor-pointer flex items-center gap-3 bg-[#232948] p-2 rounded-lg hover:bg-red-900/40 transition-colors">
+              <img [src]="champ.imageUrl" class="w-10 h-10 rounded object-cover">
+              <div class="flex-1 min-w-0">
+                <span class="text-white font-bold text-sm block">{{ champ.name }}</span>
+                <span class="text-white/40 text-xs">{{ champ.roles[0] }}</span>
+              </div>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" [style.color]="tierColor(champ.tier)" [style.border]="'1px solid ' + tierColor(champ.tier)">{{ champ.tier }}</span>
+              <span class="absolute right-3 text-red-500 opacity-0 group-hover:opacity-100 material-symbols-outlined text-base">close</span>
             </div>
           }
-
-          @if ((isRadiantLeft() ? radiantTeam() : direTeam()).length === 0) {
-            <div class="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#323b67] py-10">
-              <p class="text-white font-bold">ยังไม่ได้เลือกฮีโร่</p>
-              <p class="text-white/50 text-sm">เลือกจากรายการด้านล่าง</p>
+          @if (blueTeam().length === 0) {
+            <div class="flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#323b67] py-8">
+              <p class="text-white/50 text-sm">No picks yet</p>
             </div>
           }
         </div>
       </div>
 
-      <div class="flex flex-col gap-6 rounded-lg bg-[#1E2227]/50 p-6 border border-primary/50">
-        <h2 class="text-[22px] font-bold border-b border-primary/30 pb-3 text-white">การตั้งค่าอัลกอริทึม</h2>
+      <!-- Settings / Controls -->
+      <div class="flex flex-col gap-5 rounded-lg bg-[#1E2227]/50 p-5 border border-primary/50">
+        <h2 class="text-[20px] font-bold border-b border-primary/30 pb-3 text-white">Algorithm Settings</h2>
 
-        <div class="space-y-6 pt-4">
-          <div class="space-y-2">
-            <label class="flex justify-between text-base text-white">
+        <div class="space-y-4 pt-2">
+          <div class="space-y-1.5">
+            <label class="flex justify-between text-sm text-white">
               <span><span class="font-bold">W_BASE</span> (Winrate)</span>
-              <span class="font-bold text-lg">{{ settings().wBase }}</span>
+              <span class="font-bold">{{ wBase() }}</span>
             </label>
-            <input [(ngModel)]="settings().wBase" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
+            <input [ngModel]="wBase()" (ngModelChange)="wBase.set($event)" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
           </div>
 
-          <div class="space-y-2">
-            <label class="flex justify-between text-base text-white">
+          <div class="space-y-1.5">
+            <label class="flex justify-between text-sm text-white">
               <span><span class="font-bold">W_COUNTER</span> (Counter)</span>
-              <span class="font-bold text-lg">{{ settings().wCounter }}</span>
+              <span class="font-bold">{{ wCounter() }}</span>
             </label>
-            <input [(ngModel)]="settings().wCounter" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
+            <input [ngModel]="wCounter()" (ngModelChange)="wCounter.set($event)" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
           </div>
 
-          <div class="space-y-2">
-            <label class="flex justify-between text-base text-white">
+          <div class="space-y-1.5">
+            <label class="flex justify-between text-sm text-white">
               <span><span class="font-bold">W_SYNERGY</span> (Combo)</span>
-              <span class="font-bold text-lg">{{ settings().wSynergy }}</span>
+              <span class="font-bold">{{ wSynergy() }}</span>
             </label>
-            <input [(ngModel)]="settings().wSynergy" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
+            <input [ngModel]="wSynergy()" (ngModelChange)="wSynergy.set($event)" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="flex justify-between text-sm text-white">
+              <span><span class="font-bold">W_ROLE</span> (Role Coverage)</span>
+              <span class="font-bold">{{ wRole() }}</span>
+            </label>
+            <input [ngModel]="wRole()" (ngModelChange)="wRole.set($event)" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="flex justify-between text-sm text-white">
+              <span><span class="font-bold">W_BAN</span> (Ban Threat)</span>
+              <span class="font-bold">{{ wBan() }}</span>
+            </label>
+            <input [ngModel]="wBan()" (ngModelChange)="wBan.set($event)" type="range" min="0" max="100" class="w-full h-2 bg-[#323b67] rounded-lg appearance-none cursor-pointer accent-primary">
           </div>
         </div>
 
-        <div class="mt-auto pt-8 flex flex-col gap-4">
-          <!-- Real-time Score Display -->
-          <div class="bg-[#232948] rounded-lg p-4 mb-2">
+        <div class="mt-auto pt-4 flex flex-col gap-3">
+          <!-- Score bar -->
+          <div class="bg-[#232948] rounded-lg p-3">
             <div class="flex justify-between items-center mb-2">
-              <span class="text-white/70 text-sm">คะแนนปัจจุบัน (Radiant POV)</span>
+              <span class="text-white/60 text-xs">Score (Blue POV)</span>
               <span
-                class="text-xl font-bold"
-                [class.text-radiant]="currentScore() > 0"
-                [class.text-dire]="currentScore() < 0"
+                class="text-lg font-bold"
+                [class.text-blue-400]="currentScore() > 0"
+                [class.text-red-400]="currentScore() < 0"
                 [class.text-white]="currentScore() === 0">
                 {{ currentScore() > 0 ? '+' : '' }}{{ currentScore().toFixed(2) }}
               </span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-radiant text-sm font-bold">RAD</span>
-              <div class="flex-1 h-3 bg-[#1a1f29] rounded-full overflow-hidden flex">
-                <!-- Radiant bar (ซ้าย) -->
-                <div 
-                  class="h-full bg-radiant transition-all duration-300"
-                  [style.width.%]="currentScore() >= 0 ? 50 + (currentScore() / 4) : 50 + (currentScore() / 4)">
-                </div>
-                <!-- Dire bar (ขวา) -->
-                <div 
-                  class="h-full bg-dire transition-all duration-300"
-                  [style.width.%]="currentScore() >= 0 ? 50 - (currentScore() / 4) : 50 - (currentScore() / 4)">
-                </div>
+              <span class="text-blue-400 text-xs font-bold">BLU</span>
+              <div class="flex-1 h-2.5 bg-[#1a1f29] rounded-full overflow-hidden flex">
+                <div class="h-full bg-blue-500 transition-all duration-300"
+                  [style.width.%]="50 + Math.min(Math.max(currentScore() / 4, -50), 50)"></div>
+                <div class="h-full bg-red-500 transition-all duration-300"
+                  [style.width.%]="50 - Math.min(Math.max(currentScore() / 4, -50), 50)"></div>
               </div>
-              <span class="text-dire text-sm font-bold">DIRE</span>
+              <span class="text-red-400 text-xs font-bold">RED</span>
             </div>
-            <p class="text-center text-xs text-white/50 mt-2">
+            <p class="text-center text-xs text-white/40 mt-1.5">
               @if (currentScore() > 5) {
-                <span class="text-radiant">Radiant ได้เปรียบมาก</span>
+                <span class="text-blue-400">Blue has strong advantage</span>
               } @else if (currentScore() > 0) {
-                <span class="text-radiant">Radiant ได้เปรียบเล็กน้อย</span>
+                <span class="text-blue-400">Blue slight advantage</span>
               } @else if (currentScore() < -5) {
-                <span class="text-dire">Dire ได้เปรียบมาก</span>
+                <span class="text-red-400">Red has strong advantage</span>
               } @else if (currentScore() < 0) {
-                <span class="text-dire">Dire ได้เปรียบเล็กน้อย</span>
+                <span class="text-red-400">Red slight advantage</span>
               } @else {
-                <span>สมดุล</span>
+                <span>Even</span>
               }
             </p>
           </div>
 
-           <div class="flex justify-center pb-2">
-            <button (click)="swapSides()" class="flex items-center justify-center gap-2 px-6 h-10 text-white/70 bg-transparent border border-[#323b67] rounded-full hover:bg-[#232948] hover:text-white transition-colors cursor-pointer text-sm">
-              <span class="material-symbols-outlined text-[18px]">swap_horiz</span>
-              <span>สลับฝั่ง (Reset & Swap)</span>
-            </button>
-          </div>
-
-          <button (click)="startSimulation()" class="w-full h-12 rounded-full bg-primary text-black font-bold hover:bg-yellow-300 transition-colors cursor-pointer">
-            เริ่มการจำลอง (Run Minimax)
+          <button
+            (click)="runSuggestion()"
+            [disabled]="isDraftComplete()"
+            class="w-full h-11 rounded-full bg-primary text-black font-bold hover:bg-yellow-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            {{ currentAction()?.action === 'ban' ? 'Suggest Ban (Minimax)' : 'Suggest Pick (Minimax)' }}
           </button>
-          <button (click)="resetDraft()" class="w-full h-12 rounded-full border border-[#323b67] text-white font-bold hover:bg-[#232948] transition-colors cursor-pointer">
-            รีเซ็ต
+          <button (click)="resetDraft()" class="w-full h-10 rounded-full border border-[#323b67] text-white font-bold hover:bg-[#232948] transition-colors cursor-pointer text-sm">
+            Reset Draft
           </button>
         </div>
       </div>
 
-      <div
-        class="flex flex-col gap-6 rounded-lg bg-[#1E2227]/50 p-6 border transition-colors duration-300"
-        [class.border-dire-50]="isRadiantLeft()"
-        [class.border-radiant-50]="!isRadiantLeft()"
-        [style.borderColor]="!isRadiantLeft() ? 'rgba(86, 164, 66, 0.5)' : 'rgba(197, 50, 35, 0.5)'">
+      <!-- Red Team -->
+      <div class="flex flex-col gap-4 rounded-lg bg-[#1E2227]/50 p-5 border border-red-500/40">
+        <h2 class="text-[20px] font-bold border-b border-red-500/30 pb-3 text-red-400">Red Side</h2>
 
-        <h2
-          class="text-[22px] font-bold border-b pb-3 transition-colors duration-300 text-white"
-          [class.border-dire-30]="isRadiantLeft()"
-          [class.border-radiant-30]="!isRadiantLeft()"
-          [style.borderColor]="!isRadiantLeft() ? 'rgba(86, 164, 66, 0.3)' : 'rgba(197, 50, 35, 0.3)'">
-          {{ isRadiantLeft() ? 'ทีม Dire' : 'ทีม Radiant' }}
-        </h2>
-
-        <div class="flex flex-col gap-2 min-h-[112px]">
-           @for (hero of (isRadiantLeft() ? direTeam() : radiantTeam()); track hero.id) {
-            <div (click)="removeHero(hero, isRadiantLeft() ? 'dire' : 'radiant')" class="relative group cursor-pointer flex items-center gap-4 bg-[#232948] p-2 rounded-lg hover:bg-red-900/50 transition-colors">
-              <img [src]="hero.imageUrl" class="w-12 h-12 rounded object-cover">
-              <span class="text-white font-bold">{{ hero.name }}</span>
-              <span class="absolute right-4 text-red-500 opacity-0 group-hover:opacity-100 material-symbols-outlined">close</span>
-            </div>
-          }
-
-          @if ((isRadiantLeft() ? direTeam() : radiantTeam()).length === 0) {
-            <div class="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#323b67] py-10">
-              <p class="text-white font-bold">ยังไม่ได้เลือกฮีโร่</p>
-              <p class="text-white/50 text-sm">เลือกจากรายการด้านล่าง</p>
-            </div>
-          }
-        </div>
-      </div>
-
-      <div class="lg:col-span-3 mt-8 bg-[#1E2227]/50 rounded-lg p-6 border border-white/10">
-         <div class="flex flex-col sm:flex-row gap-4 mb-6">
-            <div class="relative flex-grow">
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/50">search</span>
-              <input
-                [ngModel]="searchTerm()"
-                (ngModelChange)="searchTerm.set($event)"
-                type="text"
-                class="w-full bg-[#232948] border-none rounded-full h-12 pl-10 pr-4 text-white focus:ring-2 focus:ring-primary/50"
-                placeholder="ค้นหาฮีโร่...">
-            </div>
-            <div class="flex items-center gap-2">
-              <button (click)="activeFilter.set('ALL')" [class.bg-[#323b67]]="activeFilter() === 'ALL'" class="px-4 py-2 rounded-full text-white bg-[#232948] hover:bg-[#323b67] cursor-pointer">ทั้งหมด</button>
-              <button (click)="activeFilter.set('str')" [class.bg-red-900]="activeFilter() === 'str'" class="px-4 py-2 rounded-full text-white bg-[#232948] hover:bg-[#323b67] cursor-pointer">Strength</button>
-              <button (click)="activeFilter.set('agi')" [class.bg-green-900]="activeFilter() === 'agi'" class="px-4 py-2 rounded-full text-white bg-[#232948] hover:bg-[#323b67] cursor-pointer">Agility</button>
-              <button (click)="activeFilter.set('int')" [class.bg-blue-900]="activeFilter() === 'int'" class="px-4 py-2 rounded-full text-white bg-[#232948] hover:bg-[#323b67] cursor-pointer">Intelligence</button>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-4">
-            @for (hero of filteredHeroes(); track hero.id) {
-              <div
-                (click)="selectHero(hero)"
-                [class.opacity-30]="hero.isPicked"
-                [class.grayscale]="hero.isPicked"
-                [class.cursor-not-allowed]="hero.isPicked"
-                class="relative group cursor-pointer transition-transform hover:scale-105">
-                <img [src]="hero.imageUrl" [alt]="hero.name" class="w-full h-auto rounded-md shadow-lg group-hover:outline group-hover:outline-primary">
-                <div class="absolute bottom-0 left-0 w-full bg-black/70 text-white text-[10px] text-center py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {{ hero.name }}
-                </div>
+        <!-- Red Bans -->
+        <div>
+          <p class="text-white/40 text-xs mb-1.5 uppercase tracking-wide">Bans</p>
+          <div class="flex gap-1.5">
+            @for (i of [0,1,2,3,4]; track i) {
+              <div class="w-10 h-10 rounded bg-[#232948] border border-[#323b67] overflow-hidden flex items-center justify-center">
+                @if (redBans()[i]) {
+                  <img [src]="getChampionImage(redBans()[i])" class="w-full h-full object-cover grayscale opacity-60">
+                } @else {
+                  <span class="text-white/20 text-xs">✕</span>
+                }
               </div>
             }
           </div>
+        </div>
+
+        <!-- Red Picks -->
+        <div class="flex flex-col gap-2 min-h-[100px]">
+          @for (champ of redTeam(); track champ.id) {
+            <div (click)="removeFromTeam(champ, 'red')" class="relative group cursor-pointer flex items-center gap-3 bg-[#232948] p-2 rounded-lg hover:bg-red-900/40 transition-colors">
+              <img [src]="champ.imageUrl" class="w-10 h-10 rounded object-cover">
+              <div class="flex-1 min-w-0">
+                <span class="text-white font-bold text-sm block">{{ champ.name }}</span>
+                <span class="text-white/40 text-xs">{{ champ.roles[0] }}</span>
+              </div>
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" [style.color]="tierColor(champ.tier)" [style.border]="'1px solid ' + tierColor(champ.tier)">{{ champ.tier }}</span>
+              <span class="absolute right-3 text-red-500 opacity-0 group-hover:opacity-100 material-symbols-outlined text-base">close</span>
+            </div>
+          }
+          @if (redTeam().length === 0) {
+            <div class="flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#323b67] py-8">
+              <p class="text-white/50 text-sm">No picks yet</p>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Champion Pool -->
+      <div class="lg:col-span-3 mt-4 bg-[#1E2227]/50 rounded-lg p-5 border border-white/10">
+
+        <!-- Search + Role filter -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-5">
+          <div class="relative flex-grow">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-[20px]">search</span>
+            <input
+              [ngModel]="searchTerm()"
+              (ngModelChange)="searchTerm.set($event)"
+              type="text"
+              class="w-full bg-[#232948] border-none rounded-full h-10 pl-10 pr-4 text-white text-sm focus:ring-2 focus:ring-primary/50"
+              placeholder="Search champion...">
+          </div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button (click)="activeFilter.set('ALL')"
+              class="px-3 py-1.5 rounded-full text-sm text-white transition-colors cursor-pointer"
+              [class.bg-primary]="activeFilter() === 'ALL'"
+              [class.text-black]="activeFilter() === 'ALL'"
+              [class.bg-[#232948]]="activeFilter() !== 'ALL'">All</button>
+            @for (role of roles; track role) {
+              <button (click)="activeFilter.set(role)"
+                class="px-3 py-1.5 rounded-full text-sm text-white transition-colors cursor-pointer"
+                [class.bg-primary]="activeFilter() === role"
+                [class.text-black]="activeFilter() === role"
+                [class.bg-[#232948]]="activeFilter() !== role">
+                {{ roleShort[role] }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Current action hint -->
+        @if (!isDraftComplete()) {
+          <div class="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg"
+            [class.bg-blue-600/20]="currentAction()?.team === 'blue'"
+            [class.bg-red-600/20]="currentAction()?.team === 'red'">
+            <div class="w-2 h-2 rounded-full animate-pulse"
+              [class.bg-blue-400]="currentAction()?.team === 'blue'"
+              [class.bg-red-400]="currentAction()?.team === 'red'"></div>
+            <span class="text-white/70 text-sm">
+              <span class="font-bold"
+                [class.text-blue-400]="currentAction()?.team === 'blue'"
+                [class.text-red-400]="currentAction()?.team === 'red'">
+                {{ currentAction()?.team === 'blue' ? 'Blue' : 'Red' }}
+              </span>
+              {{ currentAction()?.action === 'ban' ? 'is banning' : 'is picking' }} — {{ currentPhaseName() }}
+            </span>
+          </div>
+        }
+
+        <!-- Champion grid -->
+        <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
+          @for (champ of filteredChampions(); track champ.id) {
+            <div
+              (click)="selectChampion(champ)"
+              [class.opacity-25]="champ.isPicked || champ.isBanned"
+              [class.grayscale]="champ.isPicked || champ.isBanned"
+              [class.cursor-not-allowed]="champ.isPicked || champ.isBanned"
+              class="relative group cursor-pointer transition-transform hover:scale-105">
+              <img [src]="champ.imageUrl" [alt]="champ.name" class="w-full h-auto rounded-md shadow-lg group-hover:outline group-hover:outline-primary">
+              <!-- Tier badge -->
+              <span class="absolute top-1 right-1 text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-sm"
+                [style.background-color]="tierColor(champ.tier)" style="color:#000;">
+                {{ champ.tier }}
+              </span>
+              <!-- Role badge -->
+              <span class="absolute top-1 left-1 text-[8px] font-bold bg-black/70 text-white/80 px-1 rounded-sm leading-tight">
+                {{ roleShort[champ.roles[0]] }}
+              </span>
+              <!-- Name tooltip on hover -->
+              <div class="absolute bottom-0 left-0 w-full bg-black/80 text-white text-[9px] text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-md">
+                {{ champ.name }}
+              </div>
+              <!-- Banned X overlay -->
+              @if (champ.isBanned) {
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-red-500 text-2xl font-black">✕</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
       </div>
 
     </div>
   </main>
 </div>
 
+<!-- Suggestion Dialog -->
 <p-dialog
-  header="แนะนำ Hero"
-  [(visible)]="showSuggestionDialog"
+  [header]="suggestion()?.isBan ? 'Suggested Ban' : 'Suggested Pick'"
+  [(visible)]="showDialog"
   [modal]="true"
   [closable]="true"
   [draggable]="false"
   [resizable]="false"
-  [style]="{ width: '400px' }"
-  (onHide)="closeSuggestionDialog()">
+  [style]="{ width: '380px' }"
+  (onHide)="closeDialog()">
 
-  @if (suggestedHero()) {
+  @if (suggestion()) {
     <div class="flex flex-col items-center gap-4 py-4">
-      <img
-        [src]="suggestedHero()!.imageUrl"
-        [alt]="suggestedHero()!.name"
-        class="w-24 h-24 rounded-lg shadow-lg">
+      <div class="relative">
+        <img
+          [src]="suggestion()!.imageUrl"
+          [alt]="suggestion()!.name"
+          class="w-24 h-24 rounded-lg shadow-lg"
+          [class.grayscale]="suggestion()!.isBan">
+        @if (suggestion()!.isBan) {
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span class="text-red-500 text-4xl font-black drop-shadow-lg">✕</span>
+          </div>
+        }
+      </div>
 
       <div class="text-center">
-        <h3 class="text-xl font-bold">{{ suggestedHero()!.name }}</h3>
-        <p class="text-sm text-gray-500 mt-1">
-          สำหรับทีม {{ isRadiantTurnForSuggestion() ? 'Radiant' : 'Dire' }}
+        <h3 class="text-xl font-bold text-white">{{ suggestion()!.name }}</h3>
+        <p class="text-sm mt-1"
+          [class.text-blue-400]="suggestion()!.forTeam === 'blue'"
+          [class.text-red-400]="suggestion()!.forTeam === 'red'">
+          {{ suggestion()!.isBan ? 'Ban for' : 'Pick for' }}
+          {{ suggestion()!.forTeam === 'blue' ? 'Blue Side' : 'Red Side' }}
         </p>
-        <p class="text-sm mt-2">
-          <span class="font-semibold">Score หลังเลือก:</span>
-          <span
-            class="font-bold"
-            [class.text-radiant]="suggestedHero()!.immediateScore > 0"
-            [class.text-dire]="suggestedHero()!.immediateScore < 0"
-            [class.text-primary]="suggestedHero()!.immediateScore === 0">
-            {{ suggestedHero()!.immediateScore > 0 ? '+' : '' }}{{ suggestedHero()!.immediateScore.toFixed(2) }}
-          </span>
+        <p class="text-sm mt-2 text-white/60">
+          {{ suggestion()!.isBan ? 'Threat Score:' : 'Draft Score:' }}
+          <span class="font-bold text-white">{{ suggestion()!.score.toFixed(2) }}</span>
         </p>
       </div>
     </div>
   }
 
   <ng-template pTemplate="footer">
-    <div style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+    <div style="display:flex; flex-direction:column; gap:0.5rem; width:100%;">
       <p-button
-        label="ตกลง เลือก Hero นี้"
+        [label]="suggestion()?.isBan ? 'Confirm Ban' : 'Confirm Pick'"
         severity="success"
         [style]="{ width: '100%' }"
         (onClick)="acceptSuggestion()">
       </p-button>
       <p-button
-        label="เลือกเอง"
+        label="Choose manually"
         severity="secondary"
         [outlined]="true"
         [style]="{ width: '100%' }"
-        (onClick)="closeSuggestionDialog()">
+        (onClick)="closeDialog()">
       </p-button>
     </div>
   </ng-template>
